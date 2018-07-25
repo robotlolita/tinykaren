@@ -25,6 +25,7 @@ type context = {
   counter: int
 };
 
+
 let rec assoc = (key, stream) =>
   switch (stream) {
   | Empty => None
@@ -65,7 +66,8 @@ and unify = (left, right, state) =>
     | Some(new_state) => unify(l1, r1, new_state)
     | None => None
     }
-  | (l, r) => if (l == r) { Some(state) } else { None }
+  | (Int(l), Int(r)) => if (l == r) { Some(state) } else { None }
+  | _ => None
   }
 
 /**
@@ -74,8 +76,8 @@ and unify = (left, right, state) =>
 and equal = (left, right) =>
   (context) =>
     switch (unify(left, right, context.state)) {
-    | Some(state) => [{ state: state, counter: context.counter }]
-    | None => []
+    | Some(state) => unit({ state: state, counter: context.counter })
+    | None => Empty
     }
 
 /**
@@ -93,7 +95,7 @@ and call_fresh = (fn) =>
  */
 and disjunction = (left, right) =>
   (context) => 
-    mplus(left(context), context(right))
+    mplus(left(context), right(context))
 
 /**
  * A goal that succeeds if both terms do (evaluates left-to-right).
@@ -132,3 +134,20 @@ and bind = (stream, goal) =>
   | Cons(head, tail) => mplus(goal(head), bind(tail, goal))
   }
 
+/**
+ * The initial state.
+ */
+and empty_state = { state: Empty, counter: 0 }
+
+/*-- Example programs */
+let five = call_fresh((q) => equal(q, Int(5)));
+
+let a_and_b = conjunction(
+  call_fresh((q) => equal(q, Int(7))),
+  call_fresh((p) =>
+    disjunction(
+      equal(p, Int(5)),
+      equal(p, Int(6))
+    )
+  )
+)
