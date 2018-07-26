@@ -123,7 +123,7 @@ and mplus = (left, right) =>
   switch (left) {
   | Empty => right
   | Cons(head, tail) => Cons(head, mplus(tail, right))
-  | Delay(f) => Delay(() => mplus(f(), right))
+  | Delay(f) => Delay(() => mplus(right, f()))
   }
 
 /**
@@ -141,7 +141,10 @@ and bind = (stream, goal) =>
 /**
  * The initial state.
  */
-and empty_state = { state: Empty, counter: 0 }
+and empty_state = { state: Empty, counter: 0 };
+
+/*-- Other utilities */
+let delay = (goal) => (context) => Delay((_) => goal()(context));
 
 /*-- Example programs */
 let five = call_fresh((q) => equal(q, Int(5)));
@@ -159,9 +162,20 @@ let a_and_b = conjunction(
 let rec fives = (x) =>
   disjunction(
     equal(x, Int(5)),
-    (context) => Delay((_) => fives(x)(context))
+    delay((_) => fives(x))
   );
 
+let rec sixes = (x) =>
+  disjunction(
+    equal(x, Int(6)),
+    delay((_) => sixes(x))
+  );
+
+let fives_and_sixes = call_fresh((x) =>
+  disjunction(fives(x), sixes(x))
+);
+
+/*-- Other utilities */
 let rec pull = (stream) =>
   switch (stream) {
   | Delay(f) => pull(f())
