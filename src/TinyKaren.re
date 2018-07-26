@@ -26,8 +26,10 @@ type context = {
   counter: int
 };
 
+type goal = (context) => stream(context);
 
-let rec assoc = (key, stream) =>
+
+let rec assoc = (key: 'a, stream: stream(('a, 'b))) =>
   switch (stream) {
   | Empty => None
   | Cons((k, v), tail) => 
@@ -39,7 +41,7 @@ let rec assoc = (key, stream) =>
  * Checks if we can substitute a variable in the term for one
  * in the current state.
  */
-let rec walk = (term, state) =>
+let rec walk = (term: term, state: state) =>
   switch (term) {
   | Var(n) => 
     switch (assoc(n, state)) {
@@ -58,7 +60,7 @@ and extend_state = (key, term, state) =>
 /**
  * Unification!
  */
-and unify = (left, right, state) =>
+and unify = (left: term, right: term, state: state) =>
   switch ((walk(left, state), walk(right, state))) {
   | (Var(l), Var(r)) when l == r => Some(state)
   | (Var(l), _) => Some(extend_state(l, right, state))
@@ -75,7 +77,7 @@ and unify = (left, right, state) =>
 /**
  * A goal that tries to unify two terms.
  */
-and equal = (left, right) =>
+and equal = (left: term, right: term) =>
   (context) =>
     switch (unify(left, right, context.state)) {
     | Some(state) => unit({ state: state, counter: context.counter })
@@ -85,7 +87,7 @@ and equal = (left, right) =>
 /**
  * A goal that introduces a fresh variable.
  */
-and call_fresh = (fn) =>
+and call_fresh = (fn: term => goal) =>
   (context) => 
     fn(Var(context.counter))({
       state: context.state,
@@ -95,21 +97,21 @@ and call_fresh = (fn) =>
 /**
  * A goal that succeeds if either of the terms do.
  */
-and disjunction = (left, right) =>
+and disjunction = (left: goal, right: goal) =>
   (context) => 
     mplus(left(context), right(context))
 
 /**
  * A goal that succeeds if both terms do (evaluates left-to-right).
  */
-and conjunction = (left, right) =>
+and conjunction = (left: goal, right: goal) =>
   (context) =>
     bind(left(context), right)
 
 /**
  * Constructs a stream with a single value (monad unit).
  */
-and unit = (context) => Cons(context, mzero)
+and unit = (context: context) => Cons(context, mzero)
 
 /**
  * The empty stream (monoid zero).
@@ -119,7 +121,7 @@ and mzero = Empty
 /**
  * Concatenates two streams (monoid plus).
  */
-and mplus = (left, right) =>
+and mplus = (left: stream('a), right: stream('a)) =>
   switch (left) {
   | Empty => right
   | Cons(head, tail) => Cons(head, mplus(tail, right))
@@ -131,7 +133,7 @@ and mplus = (left, right) =>
  * 
  * *slaps top of bind* this bad boy can search so many possibilities.
  */
-and bind = (stream, goal) =>
+and bind = (stream: stream(context), goal: goal) =>
   switch (stream) {
   | Empty => mzero
   | Cons(head, tail) => mplus(goal(head), bind(tail, goal))
@@ -144,7 +146,7 @@ and bind = (stream, goal) =>
 and empty_state = { state: Empty, counter: 0 };
 
 /*-- Other utilities */
-let delay = (goal) => (context) => Delay((_) => goal()(context));
+let delay = (goal: unit => goal) => (context) => Delay((_) => goal()(context));
 
 /*-- Example programs */
 let five = call_fresh((q) => equal(q, Int(5)));
@@ -159,13 +161,13 @@ let a_and_b = conjunction(
   )
 );
 
-let rec fives = (x) =>
+let rec fives = (x: term) =>
   disjunction(
     equal(x, Int(5)),
     delay((_) => fives(x))
   );
 
-let rec sixes = (x) =>
+let rec sixes = (x: term) =>
   disjunction(
     equal(x, Int(6)),
     delay((_) => sixes(x))
@@ -176,13 +178,13 @@ let fives_and_sixes = call_fresh((x) =>
 );
 
 /*-- Other utilities */
-let rec pull = (stream) =>
+let rec pull = (stream: stream('a)) =>
   switch (stream) {
   | Delay(f) => pull(f())
   | _        => stream
   };
 
-let rec take = (n, stream) =>
+let rec take = (n: int, stream: stream('a)) =>
   if (n == 0) {
     []
   } else {
@@ -193,7 +195,7 @@ let rec take = (n, stream) =>
     }
   };
 
-let rec take_all = (stream) =>
+let rec take_all = (stream: stream('a)) =>
   switch (pull(stream)) {
   | Empty => []
   | Cons(head, tail) => [head, ...take_all(tail)]
