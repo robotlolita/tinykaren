@@ -12,6 +12,7 @@ type term =
  */
 type stream('x) =
   | Cons('x, stream('x))
+  | Delay((unit) => stream('x))
   | Empty
   ;
 
@@ -31,6 +32,7 @@ let rec assoc = (key, stream) =>
   | Empty => None
   | Cons((k, v), tail) => 
     if (key == k) { Some(v) } else { assoc(key, tail) }
+  | Delay(_) => None
   };
 
 /**
@@ -121,6 +123,7 @@ and mplus = (left, right) =>
   switch (left) {
   | Empty => right
   | Cons(head, tail) => Cons(head, mplus(tail, right))
+  | Delay(f) => Delay(() => mplus(f(), right))
   }
 
 /**
@@ -132,6 +135,7 @@ and bind = (stream, goal) =>
   switch (stream) {
   | Empty => mzero
   | Cons(head, tail) => mplus(goal(head), bind(tail, goal))
+  | Delay(f) => Delay(() => bind(f(), goal))
   }
 
 /**
@@ -150,4 +154,35 @@ let a_and_b = conjunction(
       equal(p, Int(6))
     )
   )
-)
+);
+
+let rec fives = (x) =>
+  disjunction(
+    equal(x, Int(5)),
+    (context) => Delay((_) => fives(x)(context))
+  );
+
+let rec pull = (stream) =>
+  switch (stream) {
+  | Delay(f) => pull(f())
+  | _        => stream
+  };
+
+let rec take = (n, stream) =>
+  if (n == 0) {
+    []
+  } else {
+    switch (pull(stream)) {
+    | Empty => []
+    | Cons(head, tail) => [head, ...take(n - 1, tail)]
+    | Delay(f) => take(n, f())
+    }
+  };
+
+let rec take_all = (stream) =>
+  switch (pull(stream)) {
+  | Empty => []
+  | Cons(head, tail) => [head, ...take_all(tail)]
+  | Delay(f) => take_all(f())
+  }
+
